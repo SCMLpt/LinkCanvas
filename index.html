@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite Tracker - Instant Fallback</title>
+    <title>Satellite Tracker - Instant Fallback with Visible Satellites</title>
     <!-- Cesium.js CDN with fallback -->
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js" onerror="handleCesiumError()"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" onerror="handleCesiumError()">
@@ -105,15 +105,14 @@
             } catch (e) {
                 console.error('Cesium Viewer initialization failed:', e);
                 handleCesiumError();
+                return;
             }
 
             // Hide loading and show 3D globe if successful
-            if (isCesiumLoaded) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('cesiumContainer').style.display = 'block';
-                document.getElementById('fallbackContainer').style.display = 'none';
-                addFallbackSatellites();
-            }
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('cesiumContainer').style.display = 'block';
+            document.getElementById('fallbackContainer').style.display = 'none';
+            addFallbackSatellites();
         } else {
             handleCesiumError();
         }
@@ -127,110 +126,120 @@
 
         // Predefined satellite positions (simulated orbits for instant visibility)
         function addFallbackSatellites() {
-            if (!viewer) return; // Skip if Cesium failed
+            if (!viewer) {
+                console.error('Cesium Viewer not initialized. Skipping satellites.');
+                return;
+            }
 
-            const satellites = [
-                {
-                    name: "ISS (ZARYA)",
-                    path: [
-                        { longitude: 0, latitude: 51.6439, altitude: 400 },
-                        { longitude: 45, latitude: 51.6439, altitude: 400 },
-                        { longitude: 90, latitude: 51.6439, altitude: 400 },
-                        { longitude: 135, latitude: 51.6439, altitude: 400 },
-                        { longitude: 180, latitude: 51.6439, altitude: 400 },
-                        { longitude: -135, latitude: 51.6439, altitude: 400 },
-                        { longitude: -90, latitude: 51.6439, altitude: 400 },
-                        { longitude: -45, latitude: 51.6439, altitude: 400 }
-                    ]
-                },
-                {
-                    name: "NOAA 15",
-                    path: [
-                        { longitude: 0, latitude: 98.7380, altitude: 800 },
-                        { longitude: 45, latitude: 98.7380, altitude: 800 },
-                        { longitude: 90, latitude: 98.7380, altitude: 800 },
-                        { longitude: 135, latitude: 98.7380, altitude: 800 },
-                        { longitude: 180, latitude: 98.7380, altitude: 800 },
-                        { longitude: -135, latitude: 98.7380, altitude: 800 },
-                        { longitude: -90, latitude: 98.7380, altitude: 800 },
-                        { longitude: -45, latitude: 98.7380, altitude: 800 }
-                    ]
-                }
-            ];
-
-            satellites.forEach(sat => {
-                const positions = sat.path.map(p => Cesium.Cartesian3.fromDegrees(p.longitude, p.latitude, p.altitude * 1000));
-                viewer.entities.add({
-                    name: sat.name,
-                    position: new Cesium.SampledPositionProperty(),
-                    path: {
-                        resolution: 10, // Minimal updates for ultra-speed
-                        material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.01,
-                            color: Cesium.Color.RED.withAlpha(0.1)
-                        }),
-                        width: 0.2 // Thinnest for performance
+            try {
+                const satellites = [
+                    {
+                        name: "ISS (ZARYA)",
+                        path: [
+                            { longitude: 0, latitude: 51.6439, altitude: 400 },
+                            { longitude: 45, latitude: 51.6439, altitude: 400 },
+                            { longitude: 90, latitude: 51.6439, altitude: 400 },
+                            { longitude: 135, latitude: 51.6439, altitude: 400 },
+                            { longitude: 180, latitude: 51.6439, altitude: 400 },
+                            { longitude: -135, latitude: 51.6439, altitude: 400 },
+                            { longitude: -90, latitude: 51.6439, altitude: 400 },
+                            { longitude: -45, latitude: 51.6439, altitude: 400 }
+                        ]
                     },
-                    point: {
-                        pixelSize: 1, // Tiny for speed
-                        color: Cesium.Color.RED,
-                        outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 0.1
-                    },
-                    label: {
-                        text: sat.name,
-                        font: '4px sans-serif', // Minimal font for performance
-                        fillColor: Cesium.Color.YELLOW,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 0.1,
-                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -3)
+                    {
+                        name: "NOAA 15",
+                        path: [
+                            { longitude: 0, latitude: 98.7380, altitude: 800 },
+                            { longitude: 45, latitude: 98.7380, altitude: 800 },
+                            { longitude: 90, latitude: 98.7380, altitude: 800 },
+                            { longitude: 135, latitude: 98.7380, altitude: 800 },
+                            { longitude: 180, latitude: 98.7380, altitude: 800 },
+                            { longitude: -135, latitude: 98.7380, altitude: 800 },
+                            { longitude: -90, latitude: 98.7380, altitude: 800 },
+                            { longitude: -45, latitude: 98.7380, altitude: 800 }
+                        ]
                     }
-                });
-            });
+                ];
 
-            // Animate satellites (minimal updates for speed)
-            let time = 0;
-            setInterval(() => {
-                time += 1;
-                satellites.forEach((sat, index) => {
-                    const positionIndex = (time + index * 10) % sat.path.length; // Slower movement
-                    const position = Cesium.Cartesian3.fromDegrees(
-                        sat.path[positionIndex].longitude,
-                        sat.path[positionIndex].latitude,
-                        sat.path[positionIndex].altitude * 1000
-                    );
-                    const entity = viewer.entities.getById(sat.name);
-                    if (entity) entity.position.setValue(position);
-                });
-            }, 5000); // Update every 5 seconds for maximum performance
+                satellites.forEach(sat => {
+                    const positions = sat.path.map(p => Cesium.Cartesian3.fromDegrees(p.longitude, p.latitude, p.altitude * 1000));
+                    const sampledPosition = new Cesium.SampledPositionProperty();
 
-            // Show info on hover (minimal)
-            viewer.screenSpaceEventHandler.setInputAction((movement) => {
-                const pickedObject = viewer.scene.pick(movement.endPosition);
-                const infoBox = document.getElementById('infoBox');
-                if (pickedObject && pickedObject.id) {
-                    const entity = pickedObject.id;
-                    if (satellites.some(sat => sat.name === entity.name)) {
-                        const cartographic = Cesium.Cartographic.fromCartesian(entity.position.getValue(viewer.clock.currentTime));
-                        const altitude = (cartographic.height / 1000).toFixed(2); // meters to km
-                        infoBox.style.display = 'block';
-                        infoBox.innerHTML = `Satellite: ${entity.name}<br>Altitude: ${altitude} km (simulated)`;
-                        infoBox.style.left = `${movement.endPosition.x + 5}px`;
-                        infoBox.style.top = `${movement.endPosition.y + 5}px`;
+                    // Add initial position
+                    sampledPosition.addSample(Cesium.JulianDate.now(), positions[0]);
+
+                    const entity = viewer.entities.add({
+                        name: sat.name,
+                        position: sampledPosition,
+                        path: {
+                            resolution: 10, // Minimal updates for ultra-speed
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.1, // Increased visibility
+                                color: Cesium.Color.RED.withAlpha(0.5) // More visible color
+                            }),
+                            width: 1 // Slightly wider for visibility
+                        },
+                        point: {
+                            pixelSize: 5, // Larger for visibility
+                            color: Cesium.Color.RED,
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 0.5
+                        },
+                        label: {
+                            text: sat.name,
+                            font: '10px sans-serif', // Larger font for visibility
+                            fillColor: Cesium.Color.YELLOW,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 0.5,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -10)
+                        }
+                    });
+
+                    // Animate satellites along predefined paths
+                    let time = 0;
+                    setInterval(() => {
+                        time += 1;
+                        const positionIndex = time % sat.path.length;
+                        const position = Cesium.Cartesian3.fromDegrees(
+                            sat.path[positionIndex].longitude,
+                            sat.path[positionIndex].latitude,
+                            sat.path[positionIndex].altitude * 1000
+                        );
+                        sampledPosition.addSample(Cesium.JulianDate.now(), position);
+                    }, 5000); // Update every 5 seconds for performance
+                });
+
+                // Show info on hover (minimal)
+                viewer.screenSpaceEventHandler.setInputAction((movement) => {
+                    const pickedObject = viewer.scene.pick(movement.endPosition);
+                    const infoBox = document.getElementById('infoBox');
+                    if (pickedObject && pickedObject.id) {
+                        const entity = pickedObject.id;
+                        if (satellites.some(sat => sat.name === entity.name)) {
+                            const cartographic = Cesium.Cartographic.fromCartesian(entity.position.getValue(viewer.clock.currentTime));
+                            const altitude = (cartographic.height / 1000).toFixed(2); // meters to km
+                            infoBox.style.display = 'block';
+                            infoBox.innerHTML = `Satellite: ${entity.name}<br>Altitude: ${altitude} km (simulated)`;
+                            infoBox.style.left = `${movement.endPosition.x + 5}px`;
+                            infoBox.style.top = `${movement.endPosition.y + 5}px`;
+                        } else {
+                            infoBox.style.display = 'none';
+                        }
                     } else {
                         infoBox.style.display = 'none';
                     }
-                } else {
-                    infoBox.style.display = 'none';
-                }
-            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+                }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-            // Zoom to a default view (minimal zoom for speed)
-            viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 1000000.0) // Minimal altitude for fastest loading
-            });
+                // Zoom to a default view (minimal zoom for speed)
+                viewer.camera.setView({
+                    destination: Cesium.Cartesian3.fromDegrees(0, 0, 5000000.0) // Higher altitude for better visibility
+                });
+            } catch (e) {
+                console.error('Failed to add satellites:', e);
+                document.getElementById('error').innerText += '\nFailed to load satellites. Check console for details.';
+            }
         }
 
         // 2D Fallback if Cesium fails (shown immediately)
