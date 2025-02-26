@@ -72,7 +72,8 @@
         try {
             viewer = new Cesium.Viewer('cesiumContainer', {
                 imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                    url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    maximumLevel: 5 // Limit zoom for faster loading
                 }),
                 baseLayerPicker: false,
                 geocoder: false,
@@ -83,7 +84,7 @@
                 timeline: false,
                 infoBox: false,
                 selectionIndicator: false,
-                terrainProvider: null // Disable terrain for faster loading
+                terrainProvider: null // No terrain for maximum speed
             });
         } catch (e) {
             console.error('Cesium Viewer initialization failed:', e);
@@ -134,38 +135,38 @@
                     name: sat.name,
                     position: new Cesium.SampledPositionProperty(),
                     path: {
-                        resolution: 1,
+                        resolution: 2, // Less frequent updates for performance
                         material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.1,
-                            color: Cesium.Color.RED.withAlpha(0.5)
+                            glowPower: 0.05,
+                            color: Cesium.Color.RED.withAlpha(0.3)
                         }),
-                        width: 2
+                        width: 1 // Thinner for performance
                     },
                     point: {
-                        pixelSize: 6, // Smaller for performance
+                        pixelSize: 4, // Even smaller for speed
                         color: Cesium.Color.RED,
                         outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 1
+                        outlineWidth: 0.5
                     },
                     label: {
                         text: sat.name,
-                        font: '10px sans-serif', // Smaller font for performance
+                        font: '8px sans-serif', // Tiny font for performance
                         fillColor: Cesium.Color.YELLOW,
                         outlineColor: Cesium.Color.BLACK,
                         outlineWidth: 0.5,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -10)
+                        pixelOffset: new Cesium.Cartesian2(0, -8)
                     }
                 });
             });
 
-            // Animate satellites along predefined paths (simplified and faster)
+            // Animate satellites along predefined paths (faster, less frequent updates)
             let time = 0;
             setInterval(() => {
                 time += 1;
                 satellites.forEach((sat, index) => {
-                    const positionIndex = (time + index * 2) % sat.path.length;
+                    const positionIndex = (time + index * 3) % sat.path.length; // Slower movement
                     const position = Cesium.Cartesian3.fromDegrees(
                         sat.path[positionIndex].longitude,
                         sat.path[positionIndex].latitude,
@@ -174,9 +175,9 @@
                     const entity = viewer.entities.getById(sat.name);
                     if (entity) entity.position.setValue(position);
                 });
-            }, 1000); // Update every second
+            }, 2000); // Update every 2 seconds for performance
 
-            // Show info on hover (simplified)
+            // Show info on hover (minimal)
             viewer.screenSpaceEventHandler.setInputAction((movement) => {
                 const pickedObject = viewer.scene.pick(movement.endPosition);
                 const infoBox = document.getElementById('infoBox');
@@ -199,16 +200,11 @@
 
             // Zoom to a default view (e.g., North America)
             viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(-100.0, 40.0, 3000000.0) // Lower altitude for faster loading
+                destination: Cesium.Cartesian3.fromDegrees(-100.0, 40.0, 2000000.0) // Lower altitude for faster loading
             });
         }
 
-        // Set clock to real-time (minimal setup)
-        viewer.clock.currentTime = Cesium.JulianDate.now();
-        viewer.clock.multiplier = 60; // Speed up time slightly for visibility
-        viewer.clock.shouldAnimate = false; // Disable animation to save resources
-
-        // Quick timeout (5 seconds) if loading hangs
+        // Quick timeout (3 seconds) if loading hangs
         setTimeout(() => {
             if (document.getElementById('loading').style.display !== 'none') {
                 document.getElementById('loading').style.display = 'none';
@@ -216,7 +212,7 @@
                 document.getElementById('error').style.display = 'block';
                 addFallbackSatellites();
             }
-        }, 5000); // 5 seconds timeout
+        }, 3000); // 3 seconds timeout
     </script>
 </body>
 </html>
