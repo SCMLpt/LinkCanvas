@@ -3,68 +3,270 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinkCanvas</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.110/Build/Cesium/Cesium.js"></script>
+    <title>Satellite Tracker - Instant Fallback with Visible Satellites</title>
+    <!-- Cesium.js CDN with fallback -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js" onerror="handleCesiumError()"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" onerror="handleCesiumError()">
     <style>
-        body { margin: 0; overflow: hidden; }
-        #cesiumContainer { width: 100%; height: 100vh; }
-        #loading { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%); 
-            color: white; 
-            font-family: Arial; 
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #000;
+        }
+
+        #cesiumContainer, #fallbackContainer {
+            width: 100%;
+            height: 100vh;
+            display: none;
+        }
+
+        #infoBox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+
+        #loading, #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            display: none;
+        }
+
+        #error {
+            background: rgba(255, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        /* Fallback 2D globe style */
+        #fallbackCanvas {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, #000 0%, #1a1a1a 100%);
         }
     </style>
 </head>
 <body>
-    <div id="loading">Loading Earth...</div>
     <div id="cesiumContainer"></div>
+    <div id="fallbackContainer">
+        <canvas id="fallbackCanvas"></canvas>
+    </div>
+    <div id="loading">Loading 3D Earth...</div>
+    <div id="error"></div>
+    <div id="infoBox"></div>
+
     <script>
-        let viewer;
+        let viewer = null;
         let isCesiumLoaded = false;
 
-        function handleCesiumError(e) {
-            console.error('Error details:', e);
-            document.getElementById('loading').innerText = 'Failed to load Earth';
+        // 처음에 로딩 메시지 보이기
+        document.getElementById('loading').style.display = 'block';
+
+        // Cesium 로드 실패 시 처리
+        function handleCesiumError() {
+            console.error('Cesium.js failed to load. Switching to 2D fallback.');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('fallbackContainer').style.display = 'block';
+            showFallback();
+            isCesiumLoaded = false;
         }
 
-        if (Cesium.defined('Cesium')) {
-            isCesiumLoaded = true;
-        } else {
+        // Cesium 로드 시도
+        if (typeof Cesium !== 'undefined') {
             try {
-                Cesium = undefined;
+                viewer = new Cesium.Viewer('cesiumContainer', {
+                    imageryProvider: new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        maximumLevel: 2 // 빠른 로딩을 위한 저해상도
+                    }),
+                    baseLayerPicker: false,
+                    geocoder: false,
+                    homeButton: false,
+                    sceneModePicker: false,
+                    navigationHelpButton: false,
+                    animation: false,
+                    timeline: false,
+                    infoBox: false,
+                    selectionIndicator: false,
+                    terrainProvider: null // 지형 없음으로 속도 최적화
+                });
+                isCesiumLoaded = true;
+
+                // Cesium 성공 시 로딩 숨기고 3D 표시
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('cesiumContainer').style.display = 'block';
+                addFallbackSatellites();
             } catch (e) {
-                console.error('Cesium library not found');
+                console.error('Cesium Viewer initialization failed:', e);
+                handleCesiumError();
+            }
+        } else {
+            handleCesiumError();
+        }
+
+        // 5초 타임아웃 설정
+        setTimeout(() => {
+            if (!isCesiumLoaded) {
+                handleCesiumError();
+            }
+        }, 5000);
+
+        // 인공위성 추가 함수
+        function addFallbackSatellites() {
+            if (!viewer) {
+                console.error('Cesium Viewer not initialized. Skipping satellites.');
                 return;
+            }
+
+            try {
+                const satellites = [
+                    {
+                        name: "ISS (ZARYA)",
+                        path: [
+                            { longitude: 0, latitude: 51.6439, altitude: 400 },
+                            { longitude: 45, latitude: 51.6439, altitude: 400 },
+                            { longitude: 90, latitude: 51.6439, altitude: 400 },
+                            { longitude: 135, latitude: 51.6439, altitude: 400 },
+                            { longitude: 180, latitude: 51.6439, altitude: 400 },
+                            { longitude: -135, latitude: 51.6439, altitude: 400 },
+                            { longitude: -90, latitude: 51.6439, altitude: 400 },
+                            { longitude: -45, latitude: 51.6439, altitude: 400 }
+                        ]
+                    },
+                    {
+                        name: "NOAA 15",
+                        path: [
+                            { longitude: 0, latitude: 80, altitude: 800 }, // 위도 수정
+                            { longitude: 45, latitude: 80, altitude: 800 },
+                            { longitude: 90, latitude: 80, altitude: 800 },
+                            { longitude: 135, latitude: 80, altitude: 800 },
+                            { longitude: 180, latitude: 80, altitude: 800 },
+                            { longitude: -135, latitude: 80, altitude: 800 },
+                            { longitude: -90, latitude: 80, altitude: 800 },
+                            { longitude: -45, latitude: 80, altitude: 800 }
+                        ]
+                    }
+                ];
+
+                satellites.forEach(sat => {
+                    const positions = sat.path.map(p => Cesium.Cartesian3.fromDegrees(p.longitude, p.latitude, p.altitude * 1000));
+                    const sampledPosition = new Cesium.SampledPositionProperty();
+                    sampledPosition.addSample(Cesium.JulianDate.now(), positions[0]);
+
+                    const entity = viewer.entities.add({
+                        name: sat.name,
+                        position: sampledPosition,
+                        path: {
+                            resolution: 10,
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.1,
+                                color: Cesium.Color.RED.withAlpha(0.5)
+                            }),
+                            width: 1
+                        },
+                        point: {
+                            pixelSize: 10, // 더 잘 보이게 크기 증가
+                            color: Cesium.Color.RED,
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 0.5
+                        },
+                        label: {
+                            text: sat.name,
+                            font: '14px sans-serif', // 더 잘 보이게 폰트 크기 증가
+                            fillColor: Cesium.Color.YELLOW,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 0.5,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -14)
+                        }
+                    });
+
+                    let time = 0;
+                    setInterval(() => {
+                        time += 1;
+                        const positionIndex = time % sat.path.length;
+                        const position = Cesium.Cartesian3.fromDegrees(
+                            sat.path[positionIndex].longitude,
+                            sat.path[positionIndex].latitude,
+                            sat.path[positionIndex].altitude * 1000
+                        );
+                        sampledPosition.addSample(Cesium.JulianDate.now(), position);
+                    }, 5000);
+                });
+
+                // 마우스 오버 시 정보 표시
+                viewer.screenSpaceEventHandler.setInputAction((movement) => {
+                    const pickedObject = viewer.scene.pick(movement.endPosition);
+                    const infoBox = document.getElementById('infoBox');
+                    if (pickedObject && pickedObject.id) {
+                        const entity = pickedObject.id;
+                        if (satellites.some(sat => sat.name === entity.name)) {
+                            const cartographic = Cesium.Cartographic.fromCartesian(entity.position.getValue(viewer.clock.currentTime));
+                            const altitude = (cartographic.height / 1000).toFixed(2);
+                            infoBox.style.display = 'block';
+                            infoBox.innerHTML = `Satellite: ${entity.name}<br>Altitude: ${altitude} km (simulated)`;
+                            infoBox.style.left = `${movement.endPosition.x + 5}px`;
+                            infoBox.style.top = `${movement.endPosition.y + 5}px`;
+                        } else {
+                            infoBox.style.display = 'none';
+                        }
+                    } else {
+                        infoBox.style.display = 'none';
+                    }
+                }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+                // 기본 뷰 설정
+                viewer.camera.setView({
+                    destination: Cesium.Cartesian3.fromDegrees(0, 0, 5000000.0)
+                });
+            } catch (e) {
+                console.error('Failed to add satellites:', e);
+                document.getElementById('error').innerText = 'Failed to load satellites. Check console for details.';
+                document.getElementById('error').style.display = 'block'; // 에러 메시지 보이게
             }
         }
 
-        try {
-            viewer = new Cesium.Viewer('cesiumContainer', {
-                imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                    url: 'http://a.tile.opentopomap.org/{z}/{x}/{y}.png'
-                }),
-                maximumLevel: 2,
-                baseLayerPicker: false,
-                geocoder: false,
-                homeButton: false,
-                sceneModePicker: false,
-                navigationHelpButton: false,
-                animation: false,
-                timeline: false,
-                fullscreenButton: false,
-                terrainProvider: null
-            });
+        // 2D 폴백 함수
+        function showFallback() {
+            const canvas = document.getElementById('fallbackCanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const ctx = canvas.getContext('2d');
 
-            isCesiumLoaded = true;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 200, 0, Math.PI * 2);
+            ctx.fillStyle = 'blue';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
 
-            document.getElementById('loading').style.display = 'none';
-        } catch (e) {
-            console.error('Cesium Viewer initialization failed');
-            handleCesiumError(e);
-            return;
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2 - 250, 5, 0, Math.PI * 2); // ISS
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2 + 250, 5, 0, Math.PI * 2); // NOAA 15
+            ctx.fill();
+
+            ctx.fillStyle = 'yellow';
+            ctx.font = '14px Arial';
+            ctx.fillText('ISS', canvas.width / 2 + 10, canvas.height / 2 - 250);
+            ctx.fillText('NOAA 15', canvas.width / 2 + 10, canvas.height / 2 + 250);
         }
     </script>
 </body>
