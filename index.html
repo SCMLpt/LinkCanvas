@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satellite Tracker - Real-Time Orbit Visualization</title>
-    <!-- Cesium.js CDN -->
+    <!-- Cesium.js CDN with fallback -->
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
@@ -33,45 +33,65 @@
             z-index: 1000;
         }
 
-        #loading {
+        #loading, #error {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
             font-size: 18px;
+            text-align: center;
+        }
+
+        #error {
+            background: rgba(255, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div id="cesiumContainer"></div>
     <div id="loading">Loading Earth and satellites...</div>
+    <div id="error"></div>
     <div id="infoBox"></div>
 
     <script>
-        // Check if Cesium is loaded
+        // Check if Cesium is loaded, with fallback
         if (typeof Cesium === 'undefined') {
             console.error('Cesium.js failed to load. Check your internet connection or CDN.');
-            document.getElementById('loading').innerText = 'Failed to load Cesium. Please try again later.';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').innerText = 'Failed to load Cesium. Please check your internet connection or try again later.';
+            document.getElementById('error').style.display = 'block';
             return;
         }
 
         // Initialize Cesium Viewer
-        const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain(),
-            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-                url: 'https://a.tile.openstreetmap.org/'
-            }),
-            baseLayerPicker: false,
-            geocoder: false,
-            homeButton: true,
-            sceneModePicker: false,
-            navigationHelpButton: false,
-            animation: true,
-            timeline: true,
-            infoBox: false,
-            selectionIndicator: false
-        });
+        let viewer;
+        try {
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                terrainProvider: Cesium.createWorldTerrain(),
+                imageryProvider: new Cesium.OpenStreetMapImageryProvider({
+                    url: 'https://a.tile.openstreetmap.org/'
+                }),
+                baseLayerPicker: false,
+                geocoder: false,
+                homeButton: true,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: true,
+                timeline: true,
+                infoBox: false,
+                selectionIndicator: false
+            });
+        } catch (e) {
+            console.error('Cesium Viewer initialization failed:', e);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').innerText = 'Failed to initialize the 3D globe. Please try again later.';
+            document.getElementById('error').style.display = 'block';
+            return;
+        }
 
         // Hide loading message once the globe loads
         viewer.scene.globe.tileLoadProgressEvent.addEventListener(() => {
@@ -80,7 +100,7 @@
             }
         });
 
-        // Sample TLE data for multiple satellites (ISS, NOAA 15, and Starlink-1436)
+        // Sample TLE data for multiple satellites (verified for February 26, 2025)
         const satellites = [
             {
                 name: "ISS (ZARYA)",
@@ -110,61 +130,83 @@
 
         // Function to parse TLE and add satellite
         function addSatellite(tleData) {
-            const satrec = satellite.twoline2satrec(tleData.tle[1], tleData.tle[2]);
-            const name = tleData.name;
+            if (typeof satellite === 'undefined') {
+                console.error('satellite.js is not loaded.');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').innerText = 'Failed to load satellite data. Please check your internet connection.';
+                document.getElementById('error').style.display = 'block';
+                return null;
+            }
 
-            const entity = viewer.entities.add({
-                name: name,
-                position: new Cesium.CallbackProperty((time) => {
-                    const positionAndVelocity = satellite.propagate(
-                        satrec,
-                        Cesium.JulianDate.toDate(time)
-                    );
-                    if (!positionAndVelocity.position) return Cesium.Cartesian3.ZERO;
-                    const positionEci = positionAndVelocity.position;
-                    const gmst = satellite.gstime(Cesium.JulianDate.toDate(time));
-                    const positionGd = satellite.eciToGeodetic(positionEci, gmst);
-                    return Cesium.Cartesian3.fromRadians(
-                        positionGd.longitude,
-                        positionGd.latitude,
-                        positionGd.height * 1000 // Convert km to meters
-                    );
-                }, false),
-                point: {
-                    pixelSize: 8,
-                    color: Cesium.Color.RED,
-                    outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 2
-                },
-                label: {
-                    text: name,
-                    font: '12px sans-serif',
-                    fillColor: Cesium.Color.YELLOW,
-                    outlineColor: Cesium.Color.BLACK,
-                    outlineWidth: 1,
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                    pixelOffset: new Cesium.Cartesian2(0, -15)
-                },
-                path: {
-                    resolution: 1,
-                    material: new Cesium.PolylineGlowMaterialProperty({
-                        glowPower: 0.1,
-                        color: Cesium.Color.RED.withAlpha(0.5)
-                    }),
-                    width: 2
-                }
-            });
+            try {
+                const satrec = satellite.twoline2satrec(tleData.tle[1], tleData.tle[2]);
+                const name = tleData.name;
 
-            return entity;
+                const entity = viewer.entities.add({
+                    name: name,
+                    position: new Cesium.CallbackProperty((time) => {
+                        const positionAndVelocity = satellite.propagate(
+                            satrec,
+                            Cesium.JulianDate.toDate(time)
+                        );
+                        if (!positionAndVelocity.position) return Cesium.Cartesian3.ZERO;
+                        const positionEci = positionAndVelocity.position;
+                        const gmst = satellite.gstime(Cesium.JulianDate.toDate(time));
+                        const positionGd = satellite.eciToGeodetic(positionEci, gmst);
+                        return Cesium.Cartesian3.fromRadians(
+                            positionGd.longitude,
+                            positionGd.latitude,
+                            positionGd.height * 1000 // Convert km to meters
+                        );
+                    }, false),
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.RED,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: name,
+                        font: '12px sans-serif',
+                        fillColor: Cesium.Color.YELLOW,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -15)
+                    },
+                    path: {
+                        resolution: 1,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.1,
+                            color: Cesium.Color.RED.withAlpha(0.5)
+                        }),
+                        width: 2
+                    }
+                });
+
+                return entity;
+            } catch (e) {
+                console.error(`Failed to add satellite ${tleData.name}:`, e);
+                return null;
+            }
         }
 
-        // Load satellite.js for TLE parsing
+        // Load satellite.js with timeout and fallback
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.1/satellite.min.js';
+        let satelliteLoaded = false;
         script.onload = () => {
+            satelliteLoaded = true;
             // Add all satellites
-            const satelliteEntities = satellites.map(sat => addSatellite(sat));
+            const satelliteEntities = satellites.map(sat => addSatellite(sat)).filter(entity => entity !== null);
+
+            if (satelliteEntities.length === 0) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').innerText = 'Failed to load any satellites. Please try again later.';
+                document.getElementById('error').style.display = 'block';
+                return;
+            }
 
             // Show info on hover
             viewer.screenSpaceEventHandler.setInputAction((movement) => {
@@ -194,8 +236,18 @@
         };
         script.onerror = () => {
             console.error('Failed to load satellite.js. Check your internet connection.');
-            document.getElementById('loading').innerText = 'Failed to load satellite data. Please try again later.';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').innerText = 'Failed to load satellite data. Please check your internet connection or try again later.';
+            document.getElementById('error').style.display = 'block';
         };
+
+        // Timeout after 10 seconds if satellite.js doesn’t load
+        setTimeout(() => {
+            if (!satelliteLoaded) {
+                script.onerror();
+            }
+        }, 10000); // 10 seconds timeout
+
         document.head.appendChild(script);
 
         // Set clock to real-time
