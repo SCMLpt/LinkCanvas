@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satellite Tracker - Instant Fallback with Visible Satellites</title>
-    <!-- Cesium.js CDN with fallback -->
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js" onerror="handleCesiumError()"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" onerror="handleCesiumError()">
+    <!-- Cesium.js CDN -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -43,7 +43,7 @@
             font-size: 18px;
             text-align: center;
             display: none;
-            z-index: 1001; /* Ensure visibility over Cesium */
+            z-index: 1001;
         }
 
         #error {
@@ -77,24 +77,32 @@
 
         // Handle Cesium load failure
         function handleCesiumError() {
-            console.error('Cesium.js failed to load. Switching to 2D fallback.');
+            console.error('Cesium.js failed to load or initialize. Switching to 2D fallback.');
             document.getElementById('loading').style.display = 'none';
             document.getElementById('cesiumContainer').style.display = 'none';
             document.getElementById('fallbackContainer').style.display = 'block';
-            document.getElementById('error').innerText = 'Cesium failed to load. Using 2D fallback.';
+            document.getElementById('error').innerText = 'Cesium failed to load or initialize. Using 2D fallback.';
             document.getElementById('error').style.display = 'block';
-            setTimeout(() => document.getElementById('error').style.display = 'none', 3000); // Hide after 3s
+            setTimeout(() => document.getElementById('error').style.display = 'none', 3000);
             showFallback();
             isCesiumLoaded = false;
         }
 
-        // Attempt to load Cesium
-        if (typeof Cesium !== 'undefined') {
+        // Wait for Cesium to load
+        function waitForCesium() {
+            if (typeof Cesium !== 'undefined') {
+                initializeCesium();
+            } else {
+                setTimeout(waitForCesium, 100);
+            }
+        }
+
+        function initializeCesium() {
             try {
                 viewer = new Cesium.Viewer('cesiumContainer', {
                     imageryProvider: new Cesium.UrlTemplateImageryProvider({
                         url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        maximumLevel: 4 // Slightly higher resolution, still fast
+                        maximumLevel: 4
                     }),
                     baseLayerPicker: false,
                     geocoder: false,
@@ -117,9 +125,10 @@
                 console.error('Cesium Viewer initialization failed:', e);
                 handleCesiumError();
             }
-        } else {
-            handleCesiumError();
         }
+
+        // Attempt to load Cesium
+        waitForCesium();
 
         // 10-second timeout for Cesium loading
         setTimeout(() => {
@@ -179,28 +188,35 @@
                                 glowPower: 0.1,
                                 color: Cesium.Color.RED.withAlpha(0.5)
                             }),
-                            width: 3 // Thicker path for visibility
+                            width: 5
                         },
                         point: {
-                            pixelSize: 15, // Larger point for visibility
+                            pixelSize: 20,
                             color: Cesium.Color.RED,
                             outlineColor: Cesium.Color.WHITE,
-                            outlineWidth: 0.5
+                            outlineWidth: 1,
+                            scaleByDistance: new Cesium.NearFarScalar(1.5e2, 2.0, 1.5e7, 0.5)
                         },
                         label: {
                             text: sat.name,
-                            font: '14px sans-serif',
+                            font: '16px sans-serif',
                             fillColor: Cesium.Color.YELLOW,
                             outlineColor: Cesium.Color.BLACK,
-                            outlineWidth: 0.5,
+                            outlineWidth: 1,
                             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                            pixelOffset: new Cesium.Cartesian2(0, -14)
+                            pixelOffset: new Cesium.Cartesian2(0, -20),
+                            scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.0, 1.5e7, 0.5)
                         }
                     });
 
+                    // Track the first satellite
+                    if (sat.name === "ISS (ZARYA)") {
+                        viewer.trackedEntity = entity;
+                    }
+
                     let time = 0;
-                    setInterval(() => {
+                    const interval = setInterval(() => {
                         time += 1;
                         const positionIndex = time % sat.path.length;
                         const position = Cesium.Cartesian3.fromDegrees(
@@ -208,8 +224,9 @@
                             sat.path[positionIndex].latitude,
                             sat.path[positionIndex].altitude * 1000
                         );
-                        sampledPosition.addSample(Cesium.JulianDate.addSeconds(Cesium.JulianDate.now(), 1, new Cesium.JulianDate()), position);
-                    }, 1000); // Update every 1 second for smoother animation
+                        const futureTime = Cesium.JulianDate.addSeconds(Cesium.JulianDate.now(), 1, new Cesium.JulianDate());
+                        sampledPosition.addSample(futureTime, position);
+                    }, 1000);
                 });
 
                 // Mouse-over info box
@@ -232,16 +249,6 @@
                         infoBox.style.display = 'none';
                     }
                 }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-
-                // Set initial camera view (zoomed out)
-                viewer.camera.setView({
-                    destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000), // 15,000 km altitude
-                    orientation: {
-                        heading: Cesium.Math.toRadians(0),
-                        pitch: Cesium.Math.toRadians(-90), // Look straight down
-                        roll: 0
-                    }
-                });
             } catch (e) {
                 console.error('Failed to add satellites:', e);
                 document.getElementById('error').innerText = 'Failed to load satellites. Check console.';
@@ -249,7 +256,7 @@
             }
         }
 
-        // 2D Fallback with basic animation
+        // 2D Fallback with animation
         function showFallback() {
             const canvas = document.getElementById('fallbackCanvas');
             canvas.width = window.innerWidth;
@@ -261,8 +268,9 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 // Draw Earth
+                const earthRadius = 200;
                 ctx.beginPath();
-                ctx.arc(canvas.width / 2, canvas.height / 2, 200, 0, Math.PI * 2);
+                ctx.arc(canvas.width / 2, canvas.height / 2, earthRadius, 0, Math.PI * 2);
                 ctx.fillStyle = 'blue';
                 ctx.fill();
                 ctx.strokeStyle = 'white';
@@ -270,26 +278,29 @@
                 ctx.stroke();
 
                 // Animate satellites
+                const satelliteRadiusISS = earthRadius + 50;
+                const satelliteRadiusNOAA = earthRadius + 100;
+                const issX = canvas.width / 2 + satelliteRadiusISS * Math.cos(angle);
+                const issY = canvas.height / 2 + satelliteRadiusISS * Math.sin(angle);
+                const noaaX = canvas.width / 2 + satelliteRadiusNOAA * Math.cos(-angle);
+                const noaaY = canvas.height / 2 + satelliteRadiusNOAA * Math.sin(-angle);
+
+                // Draw satellites
                 ctx.fillStyle = 'red';
-                const issX = canvas.width / 2 + 250 * Math.cos(angle);
-                const issY = canvas.height / 2 + 250 * Math.sin(angle);
                 ctx.beginPath();
                 ctx.arc(issX, issY, 5, 0, Math.PI * 2);
                 ctx.fill();
-
-                const noaaX = canvas.width / 2 + 300 * Math.cos(-angle);
-                const noaaY = canvas.height / 2 + 300 * Math.sin(-angle);
                 ctx.beginPath();
                 ctx.arc(noaaX, noaaY, 5, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Labels
+                // Draw labels
                 ctx.fillStyle = 'yellow';
                 ctx.font = '14px Arial';
                 ctx.fillText('ISS', issX + 10, issY);
                 ctx.fillText('NOAA 15', noaaX + 10, noaaY);
 
-                angle += 0.02; // Slow orbit speed
+                angle += 0.02;
                 requestAnimationFrame(drawFallback);
             }
 
