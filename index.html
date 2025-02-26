@@ -3,206 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinkCanvas - Interactive Image Map</title>
-    <!-- Fabric.js CDN for canvas manipulation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <!-- jQuery CDN for Maphilight -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- jQuery Maphilight CDN for hotspot highlighting -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/maphilight/0.4.0/jquery.maphilight.min.js"></script>
+    <title>Satellite Tracker - Real-Time Orbit Visualization</title>
+    <!-- Cesium.js CDN -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
-            overflow: auto;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #000;
         }
 
-        .container {
-            text-align: center;
-            max-width: 800px;
+        #cesiumContainer {
+            width: 100%;
+            height: 100vh;
         }
 
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-
-        input, button {
-            padding: 10px;
-            margin: 5px;
-            font-size: 16px;
-        }
-
-        button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #45a049;
-        }
-
-        #canvas-container {
-            margin-top: 20px;
-            position: relative;
-            border: 1px solid #ccc;
-        }
-
-        #canvas {
-            background-color: white;
-        }
-
-        .hotspot-info {
+        #infoBox {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.8);
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
             color: white;
-            padding: 5px;
-            border-radius: 3px;
-            pointer-events: none;
+            padding: 10px;
+            border-radius: 5px;
             display: none;
-            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>LinkCanvas - Create Your Interactive Map</h1>
-        <input type="file" id="imageUpload" accept="image/*" onchange="loadImage(event)" />
-        <input type="text" id="keywordInput" placeholder="Enter keyword" />
-        <input type="text" id="linkInput" placeholder="Enter link (e.g., https://example.com)" />
-        <button onclick="addHotspot()">Add Hotspot</button>
-        <button onclick="saveMap()">Save Map</button>
-        <div id="canvas-container">
-            <canvas id="canvas" width="600" height="400"></canvas>
-            <div id="hotspot-info" class="hotspot-info"></div>
-        </div>
-    </div>
+    <div id="cesiumContainer"></div>
+    <div id="infoBox"></div>
 
     <script>
-        const canvas = new fabric.Canvas('canvas');
-        let currentImage = null;
-        let hotspots = [];
+        // Initialize Cesium Viewer
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: Cesium.createWorldTerrain(),
+            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
+                url: 'https://a.tile.openstreetmap.org/'
+            }),
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: true,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: true,
+            timeline: true
+        });
 
-        // Load image onto the canvas
-        function loadImage(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        // Sample TLE data for ISS (International Space Station) - Replace with real-time fetch if backend available
+        const tleData = [
+            "ISS (ZARYA)",
+            "1 25544U 98067A   25057.50000000  .00016717  00000-0  10270-3 0  9990",
+            "2 25544  51.6439  45.1234 0001373  74.5678 285.5678 15.49556789345678"
+        ];
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    currentImage = new fabric.Image(img, {
-                        left: 0,
-                        top: 0,
-                        selectable: false
-                    });
-                    canvas.clear();
-                    canvas.setWidth(img.width > 600 ? 600 : img.width);
-                    canvas.setHeight(img.height > 400 ? 400 : img.height);
-                    canvas.add(currentImage);
-                    canvas.renderAll();
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
+        // Function to parse TLE and add satellite
+        function addSatellite(tle) {
+            const satrec = satellite.twoline2satrec(tle[1], tle[2]);
+            const name = tle[0];
 
-        // Add a hotspot to the canvas
-        function addHotspot() {
-            const keyword = document.getElementById('keywordInput').value.trim();
-            let link = document.getElementById('linkInput').value.trim();
-
-            if (!currentImage) {
-                alert('Please upload an image first!');
-                return;
-            }
-            if (!keyword || !link) {
-                alert('Please enter both a keyword and a link!');
-                return;
-            }
-
-            if (!link.startsWith('http://') && !link.startsWith('https://')) {
-                link = 'https://' + link;
-            }
-
-            const rect = new fabric.Rect({
-                left: 50,
-                top: 50,
-                width: 100,
-                height: 50,
-                fill: 'rgba(255, 0, 0, 0.3)',
-                stroke: 'red',
-                strokeWidth: 1,
-                hasControls: true,
-                hasBorders: true,
-                data: { keyword, link }
+            // Add entity to Cesium
+            const entity = viewer.entities.add({
+                name: name,
+                position: Cesium.CallbackProperty((time) => {
+                    const positionAndVelocity = satellite.propagate(
+                        satrec,
+                        Cesium.JulianDate.toDate(time)
+                    );
+                    const positionEci = positionAndVelocity.position;
+                    const gmst = satellite.gstime(Cesium.JulianDate.toDate(time));
+                    const positionGd = satellite.eciToGeodetic(positionEci, gmst);
+                    return Cesium.Cartesian3.fromRadians(
+                        positionGd.longitude,
+                        positionGd.latitude,
+                        positionGd.height * 1000 // Convert km to meters
+                    );
+                }, false),
+                point: {
+                    pixelSize: 10,
+                    color: Cesium.Color.RED,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2
+                },
+                label: {
+                    text: name,
+                    font: '12px sans-serif',
+                    fillColor: Cesium.Color.YELLOW,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -10)
+                }
             });
 
-            canvas.add(rect);
-            hotspots.push({ keyword, link, left: rect.left, top: rect.top, width: rect.width, height: rect.height });
-            canvas.setActiveObject(rect);
-            canvas.renderAll();
-
-            document.getElementById('keywordInput').value = '';
-            document.getElementById('linkInput').value = '';
+            return entity;
         }
 
-        // Hotspot interaction: Show info on hover, open link on click
-        canvas.on('mouse:over', function(e) {
-            if (e.target && e.target.data) {
-                const info = document.getElementById('hotspot-info');
-                info.style.left = `${e.target.left + e.target.width + 10}px`;
-                info.style.top = `${e.target.top}px`;
-                info.textContent = `${e.target.data.keyword}\n${e.target.data.link}`;
-                info.style.display = 'block';
-            }
-        });
+        // Include satellite.js for TLE parsing (loaded dynamically)
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.1/satellite.min.js';
+        script.onload = () => {
+            const iss = addSatellite(tleData);
 
-        canvas.on('mouse:out', function() {
-            document.getElementById('hotspot-info').style.display = 'none';
-        });
+            // Show info on hover
+            viewer.screenSpaceEventHandler.setInputAction((movement) => {
+                const pickedObject = viewer.scene.pick(movement.endPosition);
+                const infoBox = document.getElementById('infoBox');
+                if (pickedObject && pickedObject.id === iss) {
+                    const cartographic = Cesium.Cartographic.fromCartesian(iss.position.getValue(viewer.clock.currentTime));
+                    const altitude = (cartographic.height / 1000).toFixed(2); // meters to km
+                    infoBox.style.display = 'block';
+                    infoBox.innerHTML = `Satellite: ${iss.name}<br>Altitude: ${altitude} km`;
+                    infoBox.style.left = `${movement.endPosition.x + 10}px`;
+                    infoBox.style.top = `${movement.endPosition.y + 10}px`;
+                } else {
+                    infoBox.style.display = 'none';
+                }
+            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-        canvas.on('mouse:down', function(e) {
-            if (e.target && e.target.data) {
-                window.open(e.target.data.link, '_blank');
-            }
-        });
+            // Zoom to ISS initially
+            viewer.trackedEntity = iss;
+        };
+        document.head.appendChild(script);
 
-        // Save the map (currently outputs to console; backend needed for full functionality)
-        function saveMap() {
-            if (!currentImage) {
-                alert('No image to save!');
-                return;
-            }
-
-            const mapData = {
-                image: canvas.toDataURL(),
-                hotspots: hotspots
-            };
-
-            console.log('Saved map data:', mapData);
-            alert('Map saved! Check the console.');
-
-            // Uncomment below to enable server saving (requires backend setup)
-            /*
-            fetch('http://localhost:5001/map/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(mapData)
-            }).then(response => response.json())
-              .then(data => alert('Map saved to server!'))
-              .catch(error => console.error('Save failed:', error));
-            */
-        }
+        // Set clock to real-time
+        viewer.clock.currentTime = Cesium.JulianDate.now();
+        viewer.clock.multiplier = 1; // Real-time speed
+        viewer.clock.shouldAnimate = true;
     </script>
 </body>
 </html>
