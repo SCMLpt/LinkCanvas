@@ -72,7 +72,7 @@
 
         // Handle Cesium loading failure
         function handleCesiumError() {
-            console.error('Cesium.js failed to load. Using fallback.');
+            console.error('Cesium.js failed to load. Using 2D fallback.');
             document.getElementById('loading').style.display = 'none';
             document.getElementById('error').innerText = 'Failed to load 3D globe. Showing 2D fallback.';
             document.getElementById('error').style.display = 'block';
@@ -85,7 +85,7 @@
                 viewer = new Cesium.Viewer('cesiumContainer', {
                     imageryProvider: new Cesium.UrlTemplateImageryProvider({
                         url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        maximumLevel: 3 // Even lower zoom for ultra-speed
+                        maximumLevel: 2 // Ultra-low resolution for speed
                     }),
                     baseLayerPicker: false,
                     geocoder: false,
@@ -159,28 +159,28 @@
                     name: sat.name,
                     position: new Cesium.SampledPositionProperty(),
                     path: {
-                        resolution: 5, // Even less frequent for ultra-speed
+                        resolution: 10, // Minimal updates for ultra-speed
                         material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.02,
-                            color: Cesium.Color.RED.withAlpha(0.2)
+                            glowPower: 0.01,
+                            color: Cesium.Color.RED.withAlpha(0.1)
                         }),
-                        width: 0.5 // Thinnest for performance
+                        width: 0.2 // Thinnest for performance
                     },
                     point: {
-                        pixelSize: 2, // Tiny for speed
+                        pixelSize: 1, // Tiny for speed
                         color: Cesium.Color.RED,
                         outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 0.2
+                        outlineWidth: 0.1
                     },
                     label: {
                         text: sat.name,
-                        font: '6px sans-serif', // Minimal font for performance
+                        font: '4px sans-serif', // Minimal font for performance
                         fillColor: Cesium.Color.YELLOW,
                         outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 0.2,
+                        outlineWidth: 0.1,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -5)
+                        pixelOffset: new Cesium.Cartesian2(0, -3)
                     }
                 });
             });
@@ -190,7 +190,7 @@
             setInterval(() => {
                 time += 1;
                 satellites.forEach((sat, index) => {
-                    const positionIndex = (time + index * 5) % sat.path.length; // Slower movement
+                    const positionIndex = (time + index * 10) % sat.path.length; // Slower movement
                     const position = Cesium.Cartesian3.fromDegrees(
                         sat.path[positionIndex].longitude,
                         sat.path[positionIndex].latitude,
@@ -199,7 +199,7 @@
                     const entity = viewer.entities.getById(sat.name);
                     if (entity) entity.position.setValue(position);
                 });
-            }, 3000); // Update every 3 seconds for maximum performance
+            }, 5000); // Update every 5 seconds for maximum performance
 
             // Show info on hover (minimal)
             viewer.screenSpaceEventHandler.setInputAction((movement) => {
@@ -224,7 +224,7 @@
 
             // Zoom to a default view (minimal zoom for speed)
             viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 1500000.0) // Minimal altitude for fastest loading
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 1000000.0) // Minimal altitude for fastest loading
             });
         }
 
@@ -244,22 +244,22 @@
             ctx.fillStyle = 'blue';
             ctx.fill();
             ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
             ctx.stroke();
 
-            // Draw satellites as dots
+            // Draw satellites as tiny dots
             ctx.fillStyle = 'red';
             ctx.beginPath();
-            ctx.arc(400, 100, 5, 0, Math.PI * 2); // ISS
+            ctx.arc(400, 100, 2, 0, Math.PI * 2); // ISS
             ctx.fill();
             ctx.beginPath();
-            ctx.arc(400, 500, 5, 0, Math.PI * 2); // NOAA 15
+            ctx.arc(400, 500, 2, 0, Math.PI * 2); // NOAA 15
             ctx.fill();
 
-            // Add labels
+            // Add minimal labels
             ctx.fillStyle = 'yellow';
-            ctx.font = '12px Arial';
-            ctx.fillText('ISS (ZARYA)', 410, 100);
+            ctx.font = '10px Arial';
+            ctx.fillText('ISS', 410, 100);
             ctx.fillText('NOAA 15', 410, 500);
         }
     </script>
