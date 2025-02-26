@@ -97,6 +97,7 @@
             }
         }
 
+        // Initialize Cesium viewer
         function initializeCesium() {
             try {
                 viewer = new Cesium.Viewer('cesiumContainer', {
@@ -185,14 +186,14 @@
                         path: {
                             resolution: 10,
                             material: new Cesium.PolylineGlowMaterialProperty({
-                                glowPower: 0.1,
-                                color: Cesium.Color.RED.withAlpha(0.5)
+                                glowPower: 0.3, // Increased for better visibility
+                                color: Cesium.Color.YELLOW.withAlpha(0.5) // Changed to yellow
                             }),
                             width: 5
                         },
                         point: {
-                            pixelSize: 20,
-                            color: Cesium.Color.RED,
+                            pixelSize: 30, // Increased from 20 for better visibility
+                            color: Cesium.Color.YELLOW, // Changed to yellow
                             outlineColor: Cesium.Color.WHITE,
                             outlineWidth: 1,
                             scaleByDistance: new Cesium.NearFarScalar(1.5e2, 2.0, 1.5e7, 0.5)
@@ -210,7 +211,7 @@
                         }
                     });
 
-                    // Track the first satellite
+                    // Track the ISS
                     if (sat.name === "ISS (ZARYA)") {
                         viewer.trackedEntity = entity;
                     }
@@ -227,7 +228,11 @@
                         const futureTime = Cesium.JulianDate.addSeconds(Cesium.JulianDate.now(), 1, new Cesium.JulianDate());
                         sampledPosition.addSample(futureTime, position);
                     }, 1000);
+
+                    console.log('Added satellite:', sat.name); // Debugging log
                 });
+
+                console.log('Satellites added successfully'); // Confirm all satellites added
 
                 // Mouse-over info box
                 viewer.screenSpaceEventHandler.setInputAction((movement) => {
@@ -286,17 +291,17 @@
                 const noaaY = canvas.height / 2 + satelliteRadiusNOAA * Math.sin(-angle);
 
                 // Draw satellites
-                ctx.fillStyle = 'red';
+                ctx.fillStyle = 'yellow'; // Changed to yellow for better visibility
                 ctx.beginPath();
-                ctx.arc(issX, issY, 5, 0, Math.PI * 2);
+                ctx.arc(issX, issY, 10, 0, Math.PI * 2); // Increased from 5 to 10
                 ctx.fill();
                 ctx.beginPath();
-                ctx.arc(noaaX, noaaY, 5, 0, Math.PI * 2);
+                ctx.arc(noaaX, noaaY, 10, 0, Math.PI * 2); // Increased from 5 to 10
                 ctx.fill();
 
                 // Draw labels
                 ctx.fillStyle = 'yellow';
-                ctx.font = '14px Arial';
+                ctx.font = '18px Arial'; // Increased from 14px for readability
                 ctx.fillText('ISS', issX + 10, issY);
                 ctx.fillText('NOAA 15', noaaX + 10, noaaY);
 
