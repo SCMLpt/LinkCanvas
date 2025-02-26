@@ -105,14 +105,15 @@
             } catch (e) {
                 console.error('Cesium Viewer initialization failed:', e);
                 handleCesiumError();
-                return;
             }
 
             // Hide loading and show 3D globe if successful
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('cesiumContainer').style.display = 'block';
-            document.getElementById('fallbackContainer').style.display = 'none';
-            addFallbackSatellites();
+            if (isCesiumLoaded) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('cesiumContainer').style.display = 'block';
+                document.getElementById('fallbackContainer').style.display = 'none';
+                addFallbackSatellites();
+            }
         } else {
             handleCesiumError();
         }
