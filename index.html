@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkCanvas - Interactive Image Map</title>
+    <!-- Fabric.js CDN for canvas manipulation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <!-- jQuery CDN for Maphilight -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery Maphilight CDN for hotspot highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/maphilight/0.4.0/jquery.maphilight.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            overflow: auto;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #canvas-container {
+            margin-top: 20px;
+            position: relative;
+            border: 1px solid #ccc;
+        }
+
+        #canvas {
+            background-color: white;
+        }
+
+        .hotspot-info {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LinkCanvas - Create Your Interactive Map</h1>
+        <input type="file" id="imageUpload" accept="image/*" onchange="loadImage(event)" />
+        <input type="text" id="keywordInput" placeholder="Enter keyword" />
+        <input type="text" id="linkInput" placeholder="Enter link (e.g., https://example.com)" />
+        <button onclick="addHotspot()">Add Hotspot</button>
+        <button onclick="saveMap()">Save Map</button>
+        <div id="canvas-container">
+            <canvas id="canvas" width="600" height="400"></canvas>
+            <div id="hotspot-info" class="hotspot-info"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = new fabric.Canvas('canvas');
+        let currentImage = null;
+        let hotspots = [];
+
+        // Load image onto the canvas
+        function loadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    currentImage = new fabric.Image(img, {
+                        left: 0,
+                        top: 0,
+                        selectable: false
+                    });
+                    canvas.clear();
+                    canvas.setWidth(img.width > 600 ? 600 : img.width);
+                    canvas.setHeight(img.height > 400 ? 400 : img.height);
+                    canvas.add(currentImage);
+                    canvas.renderAll();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Add a hotspot to the canvas
+        function addHotspot() {
+            const keyword = document.getElementById('keywordInput').value.trim();
+            let link = document.getElementById('linkInput').value.trim();
+
+            if (!currentImage) {
+                alert('Please upload an image first!');
+                return;
+            }
+            if (!keyword || !link) {
+                alert('Please enter both a keyword and a link!');
+                return;
+            }
+
+            if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                link = 'https://' + link;
+            }
+
+            const rect = new fabric.Rect({
+                left: 50,
+                top: 50,
+                width: 100,
+                height: 50,
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                hasControls: true,
+                hasBorders: true,
+                data: { keyword, link }
+            });
+
+            canvas.add(rect);
+            hotspots.push({ keyword, link, left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+            canvas.setActiveObject(rect);
+            canvas.renderAll();
+
+            document.getElementById('keywordInput').value = '';
+            document.getElementById('linkInput').value = '';
+        }
+
+        // Hotspot interaction: Show info on hover, open link on click
+        canvas.on('mouse:over', function(e) {
+            if (e.target && e.target.data) {
+                const info = document.getElementById('hotspot-info');
+                info.style.left = `${e.target.left + e.target.width + 10}px`;
+                info.style.top = `${e.target.top}px`;
+                info.textContent = `${e.target.data.keyword}\n${e.target.data.link}`;
+                info.style.display = 'block';
+            }
+        });
+
+        canvas.on('mouse:out', function() {
+            document.getElementById('hotspot-info').style.display = 'none';
+        });
+
+        canvas.on('mouse:down', function(e) {
+            if (e.target && e.target.data) {
+                window.open(e.target.data.link, '_blank');
+            }
+        });
+
+        // Save the map (currently outputs to console; backend needed for full functionality)
+        function saveMap() {
+            if (!currentImage) {
+                alert('No image to save!');
+                return;
+            }
+
+            const mapData = {
+                image: canvas.toDataURL(),
+                hotspots: hotspots
+            };
+
+            console.log('Saved map data:', mapData);
+            alert('Map saved! Check the console.');
+
+            // Uncomment below to enable server saving (requires backend setup)
+            /*
+            fetch('http://localhost:5001/map/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mapData)
+            }).then(response => response.json())
+              .then(data => alert('Map saved to server!'))
+              .catch(error => console.error('Save failed:', error));
+            */
+        }
+    </script>
+</body>
+</html>
