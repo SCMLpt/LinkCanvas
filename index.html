@@ -3,278 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite Tracker - Instant Fallback with Visible Satellites</title>
-    <!-- Cesium.js CDN with fallback -->
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js" onerror="handleCesiumError()"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" onerror="handleCesiumError()">
+    <title>LinkCanvas</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.110/Build/Cesium/Cesium.js"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-            background-color: #000;
-        }
-
-        #cesiumContainer, #fallbackContainer {
-            width: 100%;
-            height: 100vh;
-            display: none;
-        }
-
-        #infoBox {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            display: none;
-            z-index: 1000;
-        }
-
-        #loading, #error {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-size: 18px;
-            text-align: center;
-            display: none;
-        }
-
-        #error {
-            background: rgba(255, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 5px;
-        }
-
-        /* Fallback 2D globe style */
-        #fallbackCanvas {
-            background: radial-gradient(circle, #000 0%, #1a1a1a 100%);
+        body { margin: 0; overflow: hidden; }
+        #cesiumContainer { width: 100%; height: 100vh; }
+        #loading { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            color: white; 
+            font-family: Arial; 
         }
     </style>
 </head>
 <body>
+    <div id="loading">Loading Earth...</div>
     <div id="cesiumContainer"></div>
-    <div id="fallbackContainer">
-        <canvas id="fallbackCanvas" width="800" height="600"></canvas>
-    </div>
-    <div id="loading">Loading 3D Earth...</div>
-    <div id="error"></div>
-    <div id="infoBox"></div>
-
     <script>
-        let viewer = null;
+        let viewer;
         let isCesiumLoaded = false;
 
-        // Show 2D fallback immediately
-        showFallback();
-
-        // Handle Cesium loading failure
-        function handleCesiumError() {
-            console.error('Cesium.js failed to load. Keeping 2D fallback.');
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').innerText = 'Failed to load 3D globe. Using 2D fallback.';
-            document.getElementById('error').style.display = 'block';
-            isCesiumLoaded = false;
+        function handleCesiumError(e) {
+            console.error('Error details:', e);
+            document.getElementById('loading').innerText = 'Failed to load Earth';
         }
 
-        // Try to load Cesium in the background
-        if (typeof Cesium !== 'undefined') {
-            try {
-                viewer = new Cesium.Viewer('cesiumContainer', {
-                    imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                        url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        maximumLevel: 2 // Ultra-low resolution for speed
-                    }),
-                    baseLayerPicker: false,
-                    geocoder: false,
-                    homeButton: false,
-                    sceneModePicker: false,
-                    navigationHelpButton: false,
-                    animation: false,
-                    timeline: false,
-                    infoBox: false,
-                    selectionIndicator: false,
-                    terrainProvider: null // No terrain for maximum speed
-                });
-                isCesiumLoaded = true;
-            } catch (e) {
-                console.error('Cesium Viewer initialization failed:', e);
-                handleCesiumError();
-                return;
-            }
-
-            // Hide loading and show 3D globe if successful
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('cesiumContainer').style.display = 'block';
-            document.getElementById('fallbackContainer').style.display = 'none';
-            addFallbackSatellites();
+        if (Cesium.defined('Cesium')) {
+            isCesiumLoaded = true;
         } else {
-            handleCesiumError();
-        }
-
-        // Ultra-fast timeout (1 second) if loading hangs
-        setTimeout(() => {
-            if (document.getElementById('loading').style.display !== 'none' && !isCesiumLoaded) {
-                handleCesiumError();
-            }
-        }, 1000); // 1-second timeout
-
-        // Predefined satellite positions (simulated orbits for instant visibility)
-        function addFallbackSatellites() {
-            if (!viewer) {
-                console.error('Cesium Viewer not initialized. Skipping satellites.');
+            try {
+                Cesium = undefined;
+            } catch (e) {
+                console.error('Cesium library not found');
                 return;
             }
-
-            try {
-                const satellites = [
-                    {
-                        name: "ISS (ZARYA)",
-                        path: [
-                            { longitude: 0, latitude: 51.6439, altitude: 400 },
-                            { longitude: 45, latitude: 51.6439, altitude: 400 },
-                            { longitude: 90, latitude: 51.6439, altitude: 400 },
-                            { longitude: 135, latitude: 51.6439, altitude: 400 },
-                            { longitude: 180, latitude: 51.6439, altitude: 400 },
-                            { longitude: -135, latitude: 51.6439, altitude: 400 },
-                            { longitude: -90, latitude: 51.6439, altitude: 400 },
-                            { longitude: -45, latitude: 51.6439, altitude: 400 }
-                        ]
-                    },
-                    {
-                        name: "NOAA 15",
-                        path: [
-                            { longitude: 0, latitude: 98.7380, altitude: 800 },
-                            { longitude: 45, latitude: 98.7380, altitude: 800 },
-                            { longitude: 90, latitude: 98.7380, altitude: 800 },
-                            { longitude: 135, latitude: 98.7380, altitude: 800 },
-                            { longitude: 180, latitude: 98.7380, altitude: 800 },
-                            { longitude: -135, latitude: 98.7380, altitude: 800 },
-                            { longitude: -90, latitude: 98.7380, altitude: 800 },
-                            { longitude: -45, latitude: 98.7380, altitude: 800 }
-                        ]
-                    }
-                ];
-
-                satellites.forEach(sat => {
-                    const positions = sat.path.map(p => Cesium.Cartesian3.fromDegrees(p.longitude, p.latitude, p.altitude * 1000));
-                    const sampledPosition = new Cesium.SampledPositionProperty();
-
-                    // Add initial position
-                    sampledPosition.addSample(Cesium.JulianDate.now(), positions[0]);
-
-                    const entity = viewer.entities.add({
-                        name: sat.name,
-                        position: sampledPosition,
-                        path: {
-                            resolution: 10, // Minimal updates for ultra-speed
-                            material: new Cesium.PolylineGlowMaterialProperty({
-                                glowPower: 0.1, // Increased visibility
-                                color: Cesium.Color.RED.withAlpha(0.5) // More visible color
-                            }),
-                            width: 1 // Slightly wider for visibility
-                        },
-                        point: {
-                            pixelSize: 5, // Larger for visibility
-                            color: Cesium.Color.RED,
-                            outlineColor: Cesium.Color.WHITE,
-                            outlineWidth: 0.5
-                        },
-                        label: {
-                            text: sat.name,
-                            font: '10px sans-serif', // Larger font for visibility
-                            fillColor: Cesium.Color.YELLOW,
-                            outlineColor: Cesium.Color.BLACK,
-                            outlineWidth: 0.5,
-                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                            pixelOffset: new Cesium.Cartesian2(0, -10)
-                        }
-                    });
-
-                    // Animate satellites along predefined paths
-                    let time = 0;
-                    setInterval(() => {
-                        time += 1;
-                        const positionIndex = time % sat.path.length;
-                        const position = Cesium.Cartesian3.fromDegrees(
-                            sat.path[positionIndex].longitude,
-                            sat.path[positionIndex].latitude,
-                            sat.path[positionIndex].altitude * 1000
-                        );
-                        sampledPosition.addSample(Cesium.JulianDate.now(), position);
-                    }, 5000); // Update every 5 seconds for performance
-                });
-
-                // Show info on hover (minimal)
-                viewer.screenSpaceEventHandler.setInputAction((movement) => {
-                    const pickedObject = viewer.scene.pick(movement.endPosition);
-                    const infoBox = document.getElementById('infoBox');
-                    if (pickedObject && pickedObject.id) {
-                        const entity = pickedObject.id;
-                        if (satellites.some(sat => sat.name === entity.name)) {
-                            const cartographic = Cesium.Cartographic.fromCartesian(entity.position.getValue(viewer.clock.currentTime));
-                            const altitude = (cartographic.height / 1000).toFixed(2); // meters to km
-                            infoBox.style.display = 'block';
-                            infoBox.innerHTML = `Satellite: ${entity.name}<br>Altitude: ${altitude} km (simulated)`;
-                            infoBox.style.left = `${movement.endPosition.x + 5}px`;
-                            infoBox.style.top = `${movement.endPosition.y + 5}px`;
-                        } else {
-                            infoBox.style.display = 'none';
-                        }
-                    } else {
-                        infoBox.style.display = 'none';
-                    }
-                }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-
-                // Zoom to a default view (minimal zoom for speed)
-                viewer.camera.setView({
-                    destination: Cesium.Cartesian3.fromDegrees(0, 0, 5000000.0) // Higher altitude for better visibility
-                });
-            } catch (e) {
-                console.error('Failed to add satellites:', e);
-                document.getElementById('error').innerText += '\nFailed to load satellites. Check console for details.';
-            }
         }
 
-        // 2D Fallback if Cesium fails (shown immediately)
-        function showFallback() {
-            const fallbackContainer = document.getElementById('fallbackContainer');
-            const canvas = document.getElementById('fallbackCanvas');
-            const ctx = canvas.getContext('2d');
+        try {
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                imageryProvider: new Cesium.UrlTemplateImageryProvider({
+                    url: 'http://a.tile.opentopomap.org/{z}/{x}/{y}.png'
+                }),
+                maximumLevel: 2,
+                baseLayerPicker: false,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: false,
+                timeline: false,
+                fullscreenButton: false,
+                terrainProvider: null
+            });
 
-            fallbackContainer.style.display = 'block';
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, 800, 600);
+            isCesiumLoaded = true;
 
-            // Draw a simple 2D Earth
-            ctx.beginPath();
-            ctx.arc(400, 300, 200, 0, Math.PI * 2);
-            ctx.fillStyle = 'blue';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Draw satellites as tiny dots
-            ctx.fillStyle = 'red';
-            ctx.beginPath();
-            ctx.arc(400, 100, 2, 0, Math.PI * 2); // ISS
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(400, 500, 2, 0, Math.PI * 2); // NOAA 15
-            ctx.fill();
-
-            // Add minimal labels
-            ctx.fillStyle = 'yellow';
-            ctx.font = '10px Arial';
-            ctx.fillText('ISS', 410, 100);
-            ctx.fillText('NOAA 15', 410, 500);
+            document.getElementById('loading').style.display = 'none';
+        } catch (e) {
+            console.error('Cesium Viewer initialization failed');
+            handleCesiumError(e);
+            return;
         }
     </script>
 </body>
