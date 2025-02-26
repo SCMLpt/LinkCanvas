@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite Tracker - Ultra-Fast Orbit Visualization</title>
+    <title>Satellite Tracker - Instant Fallback</title>
     <!-- Cesium.js CDN with fallback -->
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js" onerror="handleCesiumError()"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" onerror="handleCesiumError()">
@@ -42,13 +42,13 @@
             color: white;
             font-size: 18px;
             text-align: center;
+            display: none;
         }
 
         #error {
             background: rgba(255, 0, 0, 0.7);
             padding: 15px;
             border-radius: 5px;
-            display: none;
         }
 
         /* Fallback 2D globe style */
@@ -62,7 +62,7 @@
     <div id="fallbackContainer">
         <canvas id="fallbackCanvas" width="800" height="600"></canvas>
     </div>
-    <div id="loading">Loading Earth...</div>
+    <div id="loading">Loading 3D Earth...</div>
     <div id="error"></div>
     <div id="infoBox"></div>
 
@@ -70,16 +70,19 @@
         let viewer = null;
         let isCesiumLoaded = false;
 
+        // Show 2D fallback immediately
+        showFallback();
+
         // Handle Cesium loading failure
         function handleCesiumError() {
-            console.error('Cesium.js failed to load. Using 2D fallback.');
+            console.error('Cesium.js failed to load. Keeping 2D fallback.');
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').innerText = 'Failed to load 3D globe. Showing 2D fallback.';
+            document.getElementById('error').innerText = 'Failed to load 3D globe. Using 2D fallback.';
             document.getElementById('error').style.display = 'block';
-            showFallback();
+            isCesiumLoaded = false;
         }
 
-        // Try to load Cesium
+        // Try to load Cesium in the background
         if (typeof Cesium !== 'undefined') {
             try {
                 viewer = new Cesium.Viewer('cesiumContainer', {
@@ -105,20 +108,21 @@
                 return;
             }
 
-            // Hide loading and show globe immediately
+            // Hide loading and show 3D globe if successful
             document.getElementById('loading').style.display = 'none';
             document.getElementById('cesiumContainer').style.display = 'block';
+            document.getElementById('fallbackContainer').style.display = 'none';
             addFallbackSatellites();
         } else {
             handleCesiumError();
         }
 
-        // Ultra-fast timeout (2 seconds) if loading hangs
+        // Ultra-fast timeout (1 second) if loading hangs
         setTimeout(() => {
             if (document.getElementById('loading').style.display !== 'none' && !isCesiumLoaded) {
                 handleCesiumError();
             }
-        }, 2000); // 2 seconds timeout
+        }, 1000); // 1-second timeout
 
         // Predefined satellite positions (simulated orbits for instant visibility)
         function addFallbackSatellites() {
@@ -228,7 +232,7 @@
             });
         }
 
-        // 2D Fallback if Cesium fails
+        // 2D Fallback if Cesium fails (shown immediately)
         function showFallback() {
             const fallbackContainer = document.getElementById('fallbackContainer');
             const canvas = document.getElementById('fallbackCanvas');
